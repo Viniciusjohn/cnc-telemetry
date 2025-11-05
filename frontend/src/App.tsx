@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchMachineStatus, MachineStatus, ApiError } from "./lib/api";
+import { OEECard } from "./components/OEECard";
 
 const MACHINE_ID = "CNC-SIM-001";
 const POLL_INTERVAL_MS = 2000;
@@ -83,6 +84,11 @@ export default function App() {
           title="Atualizado" 
           value={status ? formatTime(status.updated_at) : "—"}
         />
+      </section>
+
+      {/* OEE Card */}
+      <section style={{marginTop:24, maxWidth:1200}}>
+        <OEECard machineId={MACHINE_ID} />
       </section>
 
       <footer style={{marginTop:24, fontSize:12, opacity:0.5, textAlign:"center"}}>
