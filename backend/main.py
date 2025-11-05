@@ -1,16 +1,22 @@
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, Response, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
-from datetime import datetime
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
 
-# Import router de status
-from app.routers import status
+# Import routers
+from app.routers import status, history, oee
 
-app = FastAPI()
+# Import DB
+from app.db import get_db, Telemetry
 
-# Wire status router
+app = FastAPI(title="CNC Telemetry API", version="1.0.0")
+
+# Wire routers
 app.include_router(status.router)
+app.include_router(history.router)
+app.include_router(oee.router)
 
 # CORS
 origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -58,11 +64,30 @@ class TelemetryPayload(BaseModel):
     state: Literal["running", "stopped", "idle"]
 
 @app.post("/v1/telemetry/ingest", status_code=201)
-async def ingest_telemetry(payload: TelemetryPayload):
+async def ingest_telemetry(payload: TelemetryPayload, db: Session = Depends(get_db)):
     """Ingerir dados de telemetria (idempotência: machine_id+timestamp)"""
-    # TODO: Persistir em DB (validar duplicatas por machine_id+timestamp)
     
-    # Atualizar status no store
+    # Parse timestamp
+    ts = datetime.fromisoformat(payload.timestamp.replace('Z', '+00:00'))
+    
+    # Persistir em TimescaleDB
+    try:
+        db_record = Telemetry(
+            ts=ts,
+            machine_id=payload.machine_id,
+            rpm=payload.rpm,
+            feed_mm_min=payload.feed_mm_min,
+            state=payload.state,
+            sequence=None  # TODO: extrair do MTConnect se disponível
+        )
+        db.add(db_record)
+        db.commit()
+    except Exception as e:
+        # Se já existe (duplicate key), apenas atualizar status
+        db.rollback()
+        print(f"DB insert failed (possibly duplicate): {e}")
+    
+    # Atualizar status em memória (para /status endpoint)
     status.update_status(
         machine_id=payload.machine_id,
         rpm=payload.rpm,
@@ -73,7 +98,7 @@ async def ingest_telemetry(payload: TelemetryPayload):
     return {
         "ingested": True,
         "machine_id": payload.machine_id,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     }
 
 # Endpoint /v1/machines/{id}/status movido para app/routers/status.py
