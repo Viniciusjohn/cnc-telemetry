@@ -5,18 +5,21 @@
 
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8001";
 
-export type MachineStatus = {
+export interface MachineStatus {
   machine_id: string;
   rpm: number;
   feed_mm_min: number;
   state: "running" | "stopped" | "idle";
   updated_at: string; // ISO 8601
-};
+}
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  status: number;
+  
+  constructor(status: number, message: string) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
   }
 }
 
