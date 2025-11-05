@@ -4,7 +4,13 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from datetime import datetime
 
+# Import router de status
+from app.routers import status
+
 app = FastAPI()
+
+# Wire status router
+app.include_router(status.router)
 
 # CORS
 origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -55,14 +61,19 @@ class TelemetryPayload(BaseModel):
 async def ingest_telemetry(payload: TelemetryPayload):
     """Ingerir dados de telemetria (idempotência: machine_id+timestamp)"""
     # TODO: Persistir em DB (validar duplicatas por machine_id+timestamp)
+    
+    # Atualizar status no store
+    status.update_status(
+        machine_id=payload.machine_id,
+        rpm=payload.rpm,
+        feed_mm_min=payload.feed_mm_min,
+        state=payload.state
+    )
+    
     return {
         "ingested": True,
         "machine_id": payload.machine_id,
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
-@app.get("/v1/machines/{mid}/status")
-def status(mid:str): 
-    return {"machine_id": mid, "rpm": 4200, "feed_mm_min": 850, "running": True,
-            "stopped": False, "last_update": datetime.utcnow().isoformat()+"Z",
-            "session":{"machining_time_sec":1378,"stopped_time_sec":42}}
+# Endpoint /v1/machines/{id}/status movido para app/routers/status.py
