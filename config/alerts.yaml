@@ -1,0 +1,59 @@
+# CNC Telemetry — Alert Rules Configuration
+# Alertas são avaliados a cada 30 segundos
+
+alerts:
+  # Regra 1: Máquina parada por muito tempo
+  - name: machine_stopped_long
+    machine_id: "*"  # Todas as máquinas
+    condition: |
+      state == 'stopped' AND duration_seconds > 60
+    severity: warning
+    channels:
+      - type: slack
+        webhook: ${SLACK_WEBHOOK_URL}
+        template: "🔴 {machine_id} parada há {duration_min} min (Estado: stopped)"
+      - type: webhook
+        url: ${CUSTOM_WEBHOOK_URL}
+        enabled: false
+    
+  # Regra 2: Execução sem movimento (anomalia crítica)
+  - name: execution_no_movement
+    machine_id: "*"
+    condition: |
+      rpm == 0 AND state == 'running'
+    severity: critical
+    duration_seconds: 60  # Só alerta se persistir por 60s
+    channels:
+      - type: slack
+        webhook: ${SLACK_WEBHOOK_URL}
+        template: "⚠️ {machine_id} em execução mas SEM MOVIMENTO (RPM=0)"
+    
+  # Regra 3: RPM anormalmente baixo (opcional)
+  - name: rpm_low_anomaly
+    machine_id: "*"
+    condition: |
+      rpm > 0 AND rpm < 1000 AND state == 'running'
+    severity: info
+    enabled: false  # Desabilitado por padrão
+    channels:
+      - type: slack
+        webhook: ${SLACK_WEBHOOK_URL}
+        template: "ℹ️ {machine_id} com RPM baixo: {rpm} RPM"
+    
+  # Regra 4: Feed muito alto (possível erro)
+  - name: feed_too_high
+    machine_id: "*"
+    condition: |
+      feed_mm_min > 2000
+    severity: warning
+    enabled: false  # Desabilitado por padrão
+    channels:
+      - type: slack
+        webhook: ${SLACK_WEBHOOK_URL}
+        template: "⚠️ {machine_id} com Feed ALTO: {feed_mm_min} mm/min"
+
+# Configuração global
+global:
+  dedupe_window_seconds: 60  # Máximo 1 alerta/min por regra
+  evaluation_interval_seconds: 30  # Avaliar a cada 30s
+  lookback_seconds: 120  # Buscar dados dos últimos 2 min
