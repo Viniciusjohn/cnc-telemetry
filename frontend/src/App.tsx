@@ -47,11 +47,12 @@ export default function App() {
       background:"linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)", 
       minHeight:"100vh", 
       color:"#e5e7eb", 
-      padding:"40px 80px",
-      fontFamily:"ui-sans-serif"
+      padding:"40px min(80px, 5vw)",
+      fontFamily:"ui-sans-serif",
+      overflowX:"hidden"
     }}>
-      {/* Container centralizado para 1920x1080 */}
-      <div style={{maxWidth:1760, margin:"0 auto"}}>
+      {/* Container responsivo - adapta de 1200px a 1760px */}
+      <div style={{maxWidth:"min(1760px, 95vw)", margin:"0 auto", width:"100%"}}>
         <header style={{
           marginBottom:40, 
           display:"flex", 
@@ -94,10 +95,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Status Cards Grid - Otimizado para 1920x1080 */}
+      {/* Status Cards Grid - Responsivo */}
       <section style={{
         display:"grid", 
-        gridTemplateColumns:"repeat(4, 1fr)", 
+        gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", 
         gap:24, 
         marginBottom:32
       }}>
