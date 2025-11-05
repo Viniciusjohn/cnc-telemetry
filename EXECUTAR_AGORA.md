@@ -42,7 +42,7 @@ python3 scripts/mtconnect_simulator.py --port 5000
 ```bash
 cd /home/viniciusjohn/iot/backend
 source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 **Aguardar:** `Application startup complete.`
@@ -288,7 +288,7 @@ gh issue create -R $REPO --title "F4 — Piloto de campo com Nestor (aceitação
 python3 scripts/mtconnect_simulator.py --port 5000
 
 # Terminal 2
-cd backend && source .venv/bin/activate && uvicorn app:app --port 8001 --reload
+cd backend && source .venv/bin/activate && uvicorn main:app --port 8001 --reload
 
 # Terminal 3 (validar)
 export AGENT_URL=http://localhost:5000 API_URL=http://localhost:8001

@@ -30,7 +30,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 ### Frontend (porta 5173)

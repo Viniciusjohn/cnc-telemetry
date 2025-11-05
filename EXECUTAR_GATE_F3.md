@@ -17,7 +17,7 @@ python3 scripts/mtconnect_simulator.py --port 5000
 ```bash
 cd /home/viniciusjohn/iot/backend
 source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 **Aguardar:** Backend inicializar (~5s)
@@ -251,7 +251,7 @@ lsof -i :8001
 
 # Reiniciar
 cd backend && source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 **Agent não responde:**

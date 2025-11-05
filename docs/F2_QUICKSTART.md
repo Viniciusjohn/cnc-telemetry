@@ -36,7 +36,7 @@ cd /home/viniciusjohn/iot
 # Terminal 1: Backend (porta 8001)
 cd backend
 source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 
 # Terminal 2: Simulador MTConnect (porta 5000)
 python3 scripts/mtconnect_simulator.py --port 5000

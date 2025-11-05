@@ -101,7 +101,7 @@ export API_URL=http://localhost:8001
 ```bash
 cd /home/viniciusjohn/iot/backend
 source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 **Terminal 2: Adapter (5 min)**

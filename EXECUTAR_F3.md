@@ -26,7 +26,7 @@ python3 scripts/mtconnect_simulator.py --port 5000
 ```bash
 cd /home/viniciusjohn/iot/backend
 source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 ```
 
 **Saída esperada:**

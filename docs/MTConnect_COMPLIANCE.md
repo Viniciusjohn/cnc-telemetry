@@ -160,7 +160,7 @@ python3 scripts/mtconnect_simulator.py --port 5000
 
 # Terminal 2: Backend API (porta 8001)
 cd backend && source .venv/bin/activate
-uvicorn app:app --port 8001 --reload
+uvicorn main:app --port 8001 --reload
 
 # Terminal 3: Adapter Python (30s para smoke test)
 cd backend
