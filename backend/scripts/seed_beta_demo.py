@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.db import Base, engine, get_db_context, Telemetry, TelemetryEvents
+from backend.app.db import Base, engine, get_db_context, Telemetry, TelemetryEvents
 
 logger = logging.getLogger(__name__)
 DEFAULT_MACHINE_ID = "SIM_M80_01"
