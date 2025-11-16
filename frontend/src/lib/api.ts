@@ -3,14 +3,36 @@
  * Usa VITE_API_BASE env var (apenas prefixadas são expostas).
  */
 
-export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8001";
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export interface MachineStatus {
   machine_id: string;
+  controller_family: string;
+  timestamp_utc: string;
+  mode: string;
+  execution: string;
   rpm: number;
-  feed_mm_min: number;
-  state: "running" | "stopped" | "idle";
-  updated_at: string; // ISO 8601
+  feed_rate: number | null;
+  spindle_load_pct: number | null;
+  tool_id: string | null;
+  alarm_code: string | null;
+  alarm_message: string | null;
+  part_count: number | null;
+  update_interval_ms: number;
+  source: string;
+}
+
+export interface MachineEvent {
+  timestamp_utc: string;
+  execution: string;
+  mode: string | null;
+  rpm: number;
+  feed_rate: number | null;
+  spindle_load_pct: number | null;
+  tool_id: string | null;
+  alarm_code: string | null;
+  alarm_message: string | null;
+  part_count: number | null;
 }
 
 export class ApiError extends Error {
@@ -36,6 +58,27 @@ export async function fetchMachineStatus(machineId: string): Promise<MachineStat
   
   if (!response.ok) {
     throw new ApiError(response.status, `Failed to fetch status: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+/**
+ * Busca eventos históricos de uma máquina.
+ * @throws {ApiError} Se response não for ok
+ */
+export async function fetchMachineEvents(machineId: string, limit: number = 50): Promise<MachineEvent[]> {
+  const url = `${API_BASE}/v1/machines/${machineId}/events?limit=${limit}`;
+  
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json",
+    },
+  });
+  
+  if (!response.ok) {
+    throw new ApiError(response.status, `Failed to fetch events: ${response.statusText}`);
   }
   
   return response.json();

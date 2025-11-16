@@ -13,7 +13,6 @@ env/
 node_modules/
 dist/
 build/
-*.log
 npm-debug.log*
 
 # IDE
@@ -35,3 +34,7 @@ soak_*.log
 tmp/
 temp/
 *.tmp
+*.bak
+
+# Archives
+archives/

@@ -1,3 +1,10 @@
+"""FastAPI entrypoint for CNC Telemetry.
+
+Use `app.config.settings` for host/port/database overrides.
+"""
+
+import logging
+
 from fastapi import FastAPI, Response, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -11,7 +18,15 @@ from app.routers import status, history, oee
 # Import DB
 from app.db import get_db, Telemetry
 
-app = FastAPI(title="CNC Telemetry API", version="1.0.0")
+APP_VERSION = "v0.3"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("cnc-telemetry")
+
+app = FastAPI(title="CNC Telemetry API", version=APP_VERSION)
 
 # Wire routers
 app.include_router(status.router)
@@ -44,6 +59,20 @@ async def enforce_preflight_204(request: Request, call_next):
         # Retorna 204 sem corpo
         return Response(status_code=204, headers=hdrs, content=b"")
     return res
+
+
+@app.on_event("startup")
+async def log_startup() -> None:
+    logger.info("CNC Telemetry API starting", extra={"version": APP_VERSION})
+
+
+@app.get("/healthz", tags=["infra"])
+async def healthz():
+    return {
+        "status": "ok",
+        "service": "cnc-telemetry",
+        "version": APP_VERSION,
+    }
 
 @app.middleware("http")
 async def headers(req, call_next):
@@ -87,12 +116,13 @@ async def ingest_telemetry(payload: TelemetryPayload, db: Session = Depends(get_
         db.rollback()
         print(f"DB insert failed (possibly duplicate): {e}")
     
-    # Atualizar status em memória (para /status endpoint)
+    # Atualizar status em memória (para /status endpoint) + persistir evento v0.2
     status.update_status(
         machine_id=payload.machine_id,
         rpm=payload.rpm,
         feed_mm_min=payload.feed_mm_min,
-        state=payload.state
+        state=payload.state,
+        db=db  # [v0.2] Passar sessão DB para persistir histórico
     )
     
     return {

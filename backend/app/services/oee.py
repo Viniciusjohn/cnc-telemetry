@@ -6,6 +6,11 @@ from datetime import datetime, time, timedelta
 from typing import Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_shift_times(shift: str, date: datetime.date) -> tuple:
@@ -30,6 +35,29 @@ def get_shift_times(shift: str, date: datetime.date) -> tuple:
         raise ValueError(f"Invalid shift: {shift}")
     
     return start, end
+
+
+def _empty_shift_oee(machine_id: str, date: str, shift: str, shift_start, shift_end) -> Dict:
+    planned_time_min = round((shift_end - shift_start).total_seconds() / 60, 2)
+    return {
+        "date": date,
+        "machine_id": machine_id,
+        "shift": shift,
+        "shift_start": shift_start.isoformat(),
+        "shift_end": shift_end.isoformat(),
+        "planned_time_min": planned_time_min,
+        "operating_time_min": 0.0,
+        "availability": 0.0,
+        "performance": 0.0,
+        "quality": 0.0,
+        "oee": 0.0,
+        "samples": {
+            "total": 0,
+            "running": 0,
+            "avg_rpm": 0,
+            "max_rpm": 0
+        }
+    }
 
 
 def calculate_oee(
@@ -96,39 +124,50 @@ def calculate_oee(
           AND ts < :end_ts
     """)
     
-    result = db.execute(query, {
-        "machine_id": machine_id,
-        "start_ts": shift_start,
-        "end_ts": shift_end
-    }).fetchone()
+    try:
+        result = db.execute(query, {
+            "machine_id": machine_id,
+            "start_ts": shift_start,
+            "end_ts": shift_end
+        }).fetchone()
+    except (OperationalError, ProgrammingError) as exc:
+        logger.info(
+            "oee query skipped due to missing table/schema",
+            extra={"machine_id": machine_id, "shift": shift, "error": str(exc)}
+        )
+        return _empty_shift_oee(machine_id, date, shift, shift_start, shift_end)
     
-    total_samples = result.total_samples or 0
-    running_samples = result.running_samples or 0
-    avg_rpm = result.avg_rpm or 0
-    max_rpm = result.max_rpm or 0
-    
+    total_samples = result.total_samples or 0 if result else 0
+    running_samples = result.running_samples or 0 if result else 0
+    avg_rpm = result.avg_rpm or 0 if result else 0
+    max_rpm = result.max_rpm or 0 if result else 0
+
     # Calculate metrics
-    planned_time_min = (shift_end - shift_start).seconds / 60
-    
+    planned_time_min = (shift_end - shift_start).total_seconds() / 60
+
     # Assuming 2-second polling interval
     operating_time_min = (running_samples * 2) / 60 if running_samples > 0 else 0
-    
+
     # Availability = Operating Time / Planned Time
     availability = operating_time_min / planned_time_min if planned_time_min > 0 else 0
-    
+
     # Performance (simplified: actual RPM / programmed RPM)
     # For PMV, we assume 100% performance (need CAM data for real calculation)
     programmed_rpm = 4500  # TODO: Get from CAM/G-code
-    performance = (avg_rpm / programmed_rpm) if programmed_rpm > 0 and avg_rpm > 0 else 1.0
-    performance = min(performance, 1.0)  # Cap at 100%
-    
+    performance = 0.0
+    if programmed_rpm > 0 and avg_rpm > 0:
+        performance = min(avg_rpm / programmed_rpm, 1.0)
+
     # Quality (simplified: assume 100% good parts for PMV)
     # TODO: Integrate with inspection/QC system
-    quality = 1.0
-    
+    quality = 0.0 if total_samples == 0 else 1.0
+
     # OEE = A × P × Q
     oee = availability * performance * quality
     
+    if total_samples == 0:
+        return _empty_shift_oee(machine_id, date, shift, shift_start, shift_end)
+
     return {
         "date": date,
         "machine_id": machine_id,

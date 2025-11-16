@@ -1,6 +1,6 @@
-# cnc-telemetry
+# CNC-Genius Telemetria
 
-Sistema de telemetria para máquinas CNC Mobile+PC com PWA instalável.
+Serviço de telemetria CNC do projeto CNC-Genius (MTConnect → JSON canônico → dashboard).
 
 ## 🎯 Stack
 
@@ -172,6 +172,29 @@ python3 mtconnect_adapter.py
 - **Mitsubishi MTConnect:** https://www.mitsubishielectric.com/fa/products/cnc/
 - **FastAPI Docs:** https://fastapi.tiangolo.com/
 - **Playwright:** https://playwright.dev/
+
+---
+
+## Estrutura de diretórios
+
+```text
+cnc-telemetry-main/
+  backend/               # FastAPI, app principal da telemetria
+  frontend/              # UI (React/Vite) – package.json fica aqui
+  deploy/                # scripts e arquivos de deploy (Linux/Windows/VM)
+  scripts/               # scripts utilitários (seed, ferramentas, etc.)
+  docs/
+    analysis/            # análises técnicas
+    plans/               # planos e roadmaps
+    sprint_history/      # histórico de sprints e arquivos EXECUTAR_*
+  archives/              # materiais antigos/experimentais (não usados em produção)
+  .cursor/               # regras e configs do Cursor
+  .gitignore
+  README.md
+  install_cnc_telemetry.ps1
+```
+
+Arquivos de sprint/planejamento (EXECUTAR_*, SPRINT_*, TODO_*, NEXT_STEPS, etc.) foram movidos para `docs/sprint_history/` ou `docs/analysis/` para manter a raiz limpa e adequada aos scripts de instalação e automação.
 
 ---
 

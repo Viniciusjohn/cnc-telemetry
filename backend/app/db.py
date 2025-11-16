@@ -1,27 +1,32 @@
 # backend/app/db.py
 # Database connection and models (SQLAlchemy + TimescaleDB)
 
-import os
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, Float, String, DateTime, BigInteger, CheckConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
-# Database URL from environment
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://cnc_user:cnc_telemetry_2025@localhost/cnc_telemetry"
-)
+from .config import settings
 
-# Engine with connection pooling
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,
-    max_overflow=40,
-    pool_pre_ping=True,  # Test connections before using
-    echo=False  # Set to True for SQL debug
-)
+# Database URL from centralized settings
+DATABASE_URL = settings.database_url
+
+# Engine with connection pooling (disable pools for SQLite file/memory)
+engine_args = {
+    "echo": False,
+}
+
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, **engine_args)
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=20,
+        max_overflow=40,
+        pool_pre_ping=True,
+        **engine_args,
+    )
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -51,6 +56,32 @@ class Telemetry(Base):
         CheckConstraint('rpm >= 0', name='check_rpm_positive'),
         CheckConstraint('feed_mm_min >= 0', name='check_feed_positive'),
         CheckConstraint("state IN ('running','stopped','idle')", name='check_state_valid'),
+    )
+
+
+class TelemetryEvents(Base):
+    """Telemetry events history for v0.2 - stores snapshots for event log"""
+    __tablename__ = "telemetry_events"
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    machine_id = Column(String(50), nullable=False, index=True)
+    timestamp_utc = Column(DateTime(timezone=True), nullable=False, index=True)
+    mode = Column(String(20), nullable=True)
+    execution = Column(String(20), nullable=False)
+    rpm = Column(Float, nullable=False)
+    feed_rate = Column(Float, nullable=True)
+    spindle_load_pct = Column(Float, nullable=True)
+    tool_id = Column(String(20), nullable=True)
+    alarm_code = Column(String(50), nullable=True)
+    alarm_message = Column(String(200), nullable=True)
+    part_count = Column(BigInteger, nullable=True)
+    controller_family = Column(String(50), nullable=True)
+    source = Column(String(50), default="mtconnect:sim")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        CheckConstraint('rpm >= 0', name='check_events_rpm_positive'),
+        CheckConstraint("execution IN ('EXECUTING','STOPPED','READY','ALARM')", name='check_events_execution_valid'),
     )
 
 

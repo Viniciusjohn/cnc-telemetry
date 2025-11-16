@@ -3,29 +3,82 @@ Router para status de máquinas.
 Retorna último estado válido agregado pelo /ingest.
 """
 
-from fastapi import APIRouter, Response
+import logging
+
+from fastapi import APIRouter, Response, Depends, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, List
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
+from ..db import get_db, TelemetryEvents
 
 router = APIRouter(prefix="/v1/machines", tags=["status"])
+logger = logging.getLogger(__name__)
 
 class MachineStatus(BaseModel):
-    """Schema de status de máquina (conforme MTConnect normalizado)"""
-    machine_id: str = Field(..., pattern=r"^[A-Za-z0-9\-]+$")
-    rpm: float = Field(..., ge=0, le=30000, description="RotaryVelocity (rev/min)")
-    feed_mm_min: float = Field(..., ge=0, le=10000, description="PathFeedrate convertido (mm/min)")
-    state: str = Field(..., pattern=r"^(running|stopped|idle)$", description="Execution normalizado")
-    updated_at: datetime = Field(..., description="UTC timestamp da última atualização")
+    """Schema de status de máquina v0.1 (contrato canônico CNC-Genius)"""
+    machine_id: str = Field(..., pattern=r"^[A-Za-z0-9_\-]+$")
+    controller_family: str = Field(default="MITSUBISHI_M8X")
+    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp")
+    mode: str = Field(..., description="Operating mode (AUTOMATIC, MANUAL, etc.)")
+    execution: str = Field(..., description="Execution state (EXECUTING, STOPPED, READY)")
+    rpm: float = Field(..., ge=0, le=30000, description="Spindle RPM")
+    feed_rate: float | None = Field(None, ge=0, le=10000, description="Feed rate (mm/min)")
+    spindle_load_pct: float | None = Field(None, ge=0, le=100, description="Spindle load percentage")
+    tool_id: str | None = Field(None, description="Current tool ID")
+    alarm_code: str | None = Field(None, description="Active alarm code")
+    alarm_message: str | None = Field(None, description="Active alarm message")
+    part_count: int | None = Field(None, ge=0, description="Parts produced")
+    update_interval_ms: int = Field(default=1000, description="Update interval in milliseconds")
+    source: str = Field(default="mtconnect:sim", description="Data source identifier")
     
     class Config:
         json_schema_extra = {
             "example": {
-                "machine_id": "CNC-SIM-001",
-                "rpm": 4200.0,
-                "feed_mm_min": 1250.5,
-                "state": "running",
-                "updated_at": "2025-11-05T05:50:00Z"
+                "machine_id": "SIM_M80_01",
+                "controller_family": "MITSUBISHI_M8X",
+                "timestamp_utc": "2025-11-13T10:00:00Z",
+                "mode": "AUTOMATIC",
+                "execution": "EXECUTING",
+                "rpm": 3500,
+                "feed_rate": 1200,
+                "spindle_load_pct": 52,
+                "tool_id": "T03",
+                "alarm_code": "105",
+                "alarm_message": "OVERTRAVEL +X",
+                "part_count": 145,
+                "update_interval_ms": 1000,
+                "source": "mtconnect:sim"
+            }
+        }
+
+class MachineEvent(BaseModel):
+    """Schema para eventos de máquina v0.2 (histórico)"""
+    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp")
+    execution: str = Field(..., description="Execution state")
+    mode: str | None = Field(None, description="Operating mode")
+    rpm: float = Field(..., description="Spindle RPM")
+    feed_rate: float | None = Field(None, description="Feed rate (mm/min)")
+    spindle_load_pct: float | None = Field(None, description="Spindle load percentage")
+    tool_id: str | None = Field(None, description="Tool ID")
+    alarm_code: str | None = Field(None, description="Alarm code")
+    alarm_message: str | None = Field(None, description="Alarm message")
+    part_count: int | None = Field(None, description="Parts produced")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "timestamp_utc": "2025-11-13T10:00:00Z",
+                "execution": "EXECUTING",
+                "mode": "AUTOMATIC",
+                "rpm": 3500,
+                "feed_rate": 1200,
+                "alarm_code": None,
+                "alarm_message": None,
+                "part_count": 145
             }
         }
 
@@ -57,23 +110,138 @@ def get_machine_status(machine_id: str, response: Response):
         # Permite UI funcionar antes do primeiro /ingest
         status = MachineStatus(
             machine_id=machine_id,
+            controller_family="MITSUBISHI_M8X",
+            timestamp_utc=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            mode="MANUAL",
+            execution="READY",
             rpm=0.0,
-            feed_mm_min=0.0,
-            state="idle",
-            updated_at=datetime.now(timezone.utc)
+            feed_rate=None,
+            spindle_load_pct=None,
+            tool_id=None,
+            alarm_code=None,
+            alarm_message=None,
+            part_count=None,
+            update_interval_ms=1000,
+            source="mtconnect:sim"
         )
     
     return status
 
-def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str):
+@router.get("/{machine_id}/events", response_model=List[MachineEvent])
+def get_machine_events(
+    machine_id: str, 
+    limit: int = Query(50, ge=1, le=200, description="Number of events to return"),
+    db: Session = Depends(get_db)
+):
     """
-    Atualiza status no store.
+    Retorna histórico de eventos da máquina v0.2.
+    
+    Eventos são ordenados por timestamp_utc desc (mais recentes primeiro).
+    Limite padrão: 50 eventos, máximo: 200.
+    """
+    try:
+        events_query = (
+            db.query(TelemetryEvents)
+            .filter(TelemetryEvents.machine_id == machine_id)
+            .order_by(desc(TelemetryEvents.timestamp_utc))
+            .limit(limit)
+        )
+        events = events_query.all()
+    except (OperationalError, ProgrammingError) as exc:
+        logger.info(
+            "events query skipped due to missing table/schema",
+            extra={"machine_id": machine_id, "error": str(exc)},
+        )
+        return []
+    except Exception as exc:
+        logger.warning(
+            "events query failed",
+            extra={"machine_id": machine_id, "error": str(exc)},
+        )
+        return []
+
+    result: List[MachineEvent] = []
+    for event in events:
+        timestamp = event.timestamp_utc
+        ts_str = (
+            timestamp.isoformat().replace("+00:00", "Z")
+            if hasattr(timestamp, "isoformat")
+            else str(timestamp)
+        )
+        result.append(
+            MachineEvent(
+                timestamp_utc=ts_str,
+                execution=event.execution,
+                mode=event.mode,
+                rpm=event.rpm,
+                feed_rate=event.feed_rate,
+                spindle_load_pct=event.spindle_load_pct,
+                tool_id=event.tool_id,
+                alarm_code=event.alarm_code,
+                alarm_message=event.alarm_message,
+                part_count=event.part_count,
+            )
+        )
+
+    return result
+
+def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str, db: Session = None):
+    """
+    Atualiza status no store e persiste evento no histórico.
     Chamado por /ingest após validação.
     """
-    LAST_STATUS[machine_id] = MachineStatus(
+    # [ASSUNCAO] Mapear state legado para execution v0.1
+    execution_map = {
+        "running": "EXECUTING",
+        "stopped": "STOPPED", 
+        "idle": "READY"
+    }
+    
+    timestamp_utc = datetime.now(timezone.utc)
+    timestamp_str = timestamp_utc.isoformat().replace('+00:00', 'Z')
+    execution = execution_map.get(state, "READY")
+    
+    # Atualizar status em memória
+    status = MachineStatus(
         machine_id=machine_id,
+        controller_family="MITSUBISHI_M8X",
+        timestamp_utc=timestamp_str,
+        mode="AUTOMATIC",  # [ASSUNCAO] Assumir AUTOMATIC quando recebendo dados
+        execution=execution,
         rpm=rpm,
-        feed_mm_min=feed_mm_min,
-        state=state,
-        updated_at=datetime.now(timezone.utc)
+        feed_rate=feed_mm_min,
+        spindle_load_pct=None,  # [ASSUNCAO] Não disponível no payload atual
+        tool_id=None,  # [ASSUNCAO] Não disponível no payload atual
+        alarm_code=None,  # [ASSUNCAO] Não disponível no payload atual
+        alarm_message=None,  # [ASSUNCAO] Não disponível no payload atual
+        part_count=None,  # [ASSUNCAO] Não disponível no payload atual
+        update_interval_ms=1000,
+        source="mtconnect:sim"
     )
+    
+    LAST_STATUS[machine_id] = status
+    
+    # [v0.2] Persistir evento no histórico (assíncrono/lightweight)
+    if db is not None:
+        try:
+            event = TelemetryEvents(
+                machine_id=machine_id,
+                timestamp_utc=timestamp_utc,
+                mode="AUTOMATIC",
+                execution=execution,
+                rpm=rpm,
+                feed_rate=feed_mm_min,
+                spindle_load_pct=None,
+                tool_id=None,
+                alarm_code=None,
+                alarm_message=None,
+                part_count=None,
+                controller_family="MITSUBISHI_M8X",
+                source="mtconnect:sim"
+            )
+            db.add(event)
+            db.commit()
+        except Exception as e:
+            # [ASSUNCAO] Não bloquear o status se falhar o histórico
+            print(f"Warning: Failed to persist event to history: {e}")
+            db.rollback()

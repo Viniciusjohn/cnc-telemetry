@@ -1,0 +1,191 @@
+# ✅ **PASSO 1 — Ativar modo administrador no PowerShell**
+
+Abra o **PowerShell (Admin)**:
+
+1. Clique no menu iniciar.
+2. Digite **PowerShell**.
+3. Clique com botão direito → **Executar como administrador**.
+
+Execute:
+
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope Process -Force
+```
+
+---
+
+# ✅ **PASSO 2 — Instalar Python 3.11**
+
+(Use a versão oficial — é a mesma para o cliente.)
+
+Abra o navegador da VM e baixe:
+
+🔗 [https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe](https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe)
+
+Instale com:
+
+* ✔ “Add Python to PATH”
+* ✔ “Install for all users”
+
+Após instalar, valide:
+
+```powershell
+python --version
+```
+
+Resultado esperado:
+
+```
+Python 3.11.x
+```
+
+---
+
+# ✅ **PASSO 3 — Instalar Node.js LTS**
+
+Baixar:
+
+🔗 [https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi](https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi)
+
+Instalar padrão.
+
+Validar:
+
+```powershell
+node --version
+npm --version
+```
+
+---
+
+# ✅ **PASSO 4 — Instalar Git for Windows**
+
+Baixar:
+
+🔗 [https://git-scm.com/download/win](https://git-scm.com/download/win)
+
+Instalar padrão.
+
+Validar:
+
+```powershell
+git --version
+```
+
+---
+
+# ✅ **PASSO 5 — Copiar o KIT do CNC-Telemetry (Pendrive)**
+
+Copie para a VM:
+
+```
+C:\cnc-telemetry-main\
+   backend/
+   frontend/
+   deploy/
+   docs/
+   scripts/
+   .cursor/
+   .gitignore
+   README.md
+   install_cnc_telemetry.ps1
+```
+
+E também:
+
+```
+nssm-2.24.zip
+```
+
+---
+
+# ✅ **PASSO 6 — Instalar o NSSM (obrigatório para Gate 0)**
+
+No PowerShell (Admin):
+
+```powershell
+Expand-Archive E:\nssm-2.24.zip -DestinationPath C:\nssm
+```
+
+**Validação:**
+
+```powershell
+Test-Path C:\nssm\nssm.exe
+```
+
+Resultado esperado:
+
+```
+True
+```
+
+---
+
+# ✅ **PASSO 7 — Rodar o instalador CNC-Telemetry (Gate 0 → Gate 5)**
+
+Entre na pasta do projeto:
+
+```powershell
+cd C:\cnc-telemetry-main
+```
+
+Execute:
+
+```powershell
+.\install_cnc_telemetry.ps1 -NssmPath "C:\nssm\nssm.exe"
+```
+
+Esse comando vai:
+
+* Gate 0 → Validar NSSM
+* Criar venv Python
+* Instalar dependências
+* Gerar `.env.beta`
+* Buildar frontend
+* Registrar serviço Windows
+* Iniciar serviço
+* Testar `/healthz`
+
+---
+
+# 🔎 **VERIFICAÇÃO RÁPIDA APÓS O INSTALADOR**
+
+### Checar serviço (deve estar rodando)
+
+```powershell
+Get-Service -Name cnc-telemetry
+```
+
+Status esperado:
+
+```
+Status   Name               DisplayName
+------   ----               -----------
+Running  cnc-telemetry      CNC Telemetry Service
+```
+
+### Testar API interna
+
+```powershell
+Invoke-WebRequest http://localhost:8000/healthz
+```
+
+Esperado:
+
+```
+StatusCode: 200
+```
+
+---
+
+# 🔥 **PRÓXIMO PASSO APÓS TUDO PASSAR**
+
+A VM já vira uma réplica perfeita do cliente:
+
+* Só precisamos configurar firewall
+* Validar acesso via IP
+* Simular ingestão `/events`
+* Abrir dashboard `http://localhost:5173` ou via build servido
+
+---
+
