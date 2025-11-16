@@ -5,7 +5,7 @@ Use `app.config.settings` for host/port/database overrides.
 
 import logging
 
-from fastapi import FastAPI, Response, Request, Depends
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -13,10 +13,10 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 # Import routers
-from app.routers import status, history, oee
+from backend.app.routers import history, oee, status
 
 # Import DB
-from app.db import get_db, Telemetry
+from backend.app.db import Telemetry, get_db
 
 APP_VERSION = "v0.3"
 
