@@ -40,3 +40,10 @@ temp/
 archives/
 
 *.spec
+
+# Temp
+telemetry_beta.db
+
+# Sensitive files
+backend/.env
+backend/.env.*
