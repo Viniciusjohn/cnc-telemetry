@@ -114,23 +114,32 @@ def export_machine_oee(
             # Generate CSV
             output = io.StringIO()
             writer = csv.DictWriter(output, fieldnames=[
-                "date", "machine_id", "shift", 
+                "date", "machine_id", "shift",
+                "shift_start", "shift_end",
                 "planned_time_min", "operating_time_min",
-                "availability", "performance", "quality", "oee"
+                "availability", "performance", "quality", "oee",
+                "samples_total", "samples_running", "samples_avg_rpm", "samples_max_rpm"
             ])
             writer.writeheader()
             
             for item in trend_data:
+                samples = item.get("samples", {})
                 writer.writerow({
                     "date": item["date"],
                     "machine_id": item["machine_id"],
                     "shift": item["shift"],
+                    "shift_start": item.get("shift_start"),
+                    "shift_end": item.get("shift_end"),
                     "planned_time_min": item["planned_time_min"],
                     "operating_time_min": item["operating_time_min"],
                     "availability": item["availability"],
                     "performance": item["performance"],
                     "quality": item["quality"],
-                    "oee": item["oee"]
+                    "oee": item["oee"],
+                    "samples_total": samples.get("total"),
+                    "samples_running": samples.get("running"),
+                    "samples_avg_rpm": samples.get("avg_rpm"),
+                    "samples_max_rpm": samples.get("max_rpm"),
                 })
             
             csv_content = output.getvalue()

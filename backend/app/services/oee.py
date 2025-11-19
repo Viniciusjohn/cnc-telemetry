@@ -2,7 +2,7 @@
 # OEE Calculation Service
 # OEE = Availability × Performance × Quality
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -11,6 +11,13 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 import logging
 
 logger = logging.getLogger(__name__)
+
+try:
+    from backend.app.config import TELEMETRY_POLL_INTERVAL_SEC
+except Exception:  # pragma: no cover - config import fallback for scripts
+    TELEMETRY_POLL_INTERVAL_SEC = 1
+
+SAMPLE_INTERVAL_SEC = max(float(TELEMETRY_POLL_INTERVAL_SEC or 1), 0.1)
 
 
 def get_shift_times(shift: str, date: datetime.date) -> tuple:
@@ -23,14 +30,14 @@ def get_shift_times(shift: str, date: datetime.date) -> tuple:
     - night: 22:00-06:00 (next day)
     """
     if shift == "morning":
-        start = datetime.combine(date, time(6, 0))
-        end = datetime.combine(date, time(14, 0))
+        start = datetime.combine(date, time(6, 0)).replace(tzinfo=timezone.utc)
+        end = datetime.combine(date, time(14, 0)).replace(tzinfo=timezone.utc)
     elif shift == "afternoon":
-        start = datetime.combine(date, time(14, 0))
-        end = datetime.combine(date, time(22, 0))
+        start = datetime.combine(date, time(14, 0)).replace(tzinfo=timezone.utc)
+        end = datetime.combine(date, time(22, 0)).replace(tzinfo=timezone.utc)
     elif shift == "night":
-        start = datetime.combine(date, time(22, 0))
-        end = datetime.combine(date + timedelta(days=1), time(6, 0))
+        start = datetime.combine(date, time(22, 0)).replace(tzinfo=timezone.utc)
+        end = datetime.combine(date + timedelta(days=1), time(6, 0)).replace(tzinfo=timezone.utc)
     else:
         raise ValueError(f"Invalid shift: {shift}")
     
@@ -81,37 +88,26 @@ def calculate_oee(
     date_obj = datetime.strptime(date, "%Y-%m-%d").date()
     
     if shift == "daily":
-        # Calculate for entire day (all 3 shifts)
-        shifts_data = []
-        for s in ["morning", "afternoon", "night"]:
-            shift_oee = calculate_oee(db, machine_id, date, s)
-            shifts_data.append(shift_oee)
-        
-        # Weighted average
-        total_planned = sum(s["planned_time_min"] for s in shifts_data)
-        total_operating = sum(s["operating_time_min"] for s in shifts_data)
-        
-        avg_availability = total_operating / total_planned if total_planned > 0 else 0
-        avg_performance = sum(s["performance"] for s in shifts_data) / len(shifts_data)
-        avg_quality = sum(s["quality"] for s in shifts_data) / len(shifts_data)
-        
-        return {
-            "date": date,
-            "machine_id": machine_id,
-            "shift": "daily",
-            "planned_time_min": total_planned,
-            "operating_time_min": total_operating,
-            "availability": round(avg_availability, 4),
-            "performance": round(avg_performance, 4),
-            "quality": round(avg_quality, 4),
-            "oee": round(avg_availability * avg_performance * avg_quality, 4),
-            "shifts": shifts_data
-        }
-    
+        shift_start = datetime.combine(date_obj, time(0, 0)).replace(tzinfo=timezone.utc)
+        shift_end = shift_start + timedelta(days=1)
+        return _calculate_oee_for_window(db, machine_id, date, "daily", shift_start, shift_end)
+
     # Single shift calculation
     shift_start, shift_end = get_shift_times(shift, date_obj)
-    
-    # Query telemetry samples for this shift
+    return _calculate_oee_for_window(db, machine_id, date, shift, shift_start, shift_end)
+
+
+def _calculate_oee_for_window(
+    db: Session,
+    machine_id: str,
+    date: str,
+    shift: str,
+    shift_start: datetime,
+    shift_end: datetime,
+) -> Dict:
+    """Shared logic for computing OEE in a given window."""
+
+    # Query telemetry samples for this window
     query = text("""
         SELECT 
             COUNT(*) AS total_samples,
@@ -145,8 +141,7 @@ def calculate_oee(
     # Calculate metrics
     planned_time_min = (shift_end - shift_start).total_seconds() / 60
 
-    # Assuming 2-second polling interval
-    operating_time_min = (running_samples * 2) / 60 if running_samples > 0 else 0
+    operating_time_min = (running_samples * SAMPLE_INTERVAL_SEC) / 60 if running_samples > 0 else 0
 
     # Availability = Operating Time / Planned Time
     availability = operating_time_min / planned_time_min if planned_time_min > 0 else 0

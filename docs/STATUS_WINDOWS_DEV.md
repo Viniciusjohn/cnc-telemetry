@@ -49,3 +49,26 @@
 
 ## Observações
 - Próximos passos sugeridos: finalizar teste remoto (Missão 7) e avançar para Missão 9 (serviço Windows + modo demo).
+
+## Demo local (simulação M80)
+Para subir rapidamente o ambiente de demonstração com o worker M80 simulando dados em `M80-DEMO-01`, use os scripts abaixo:
+
+```powershell
+# Backend (modo DEMO)
+cd C:\cnc-telemetry-main\scripts\windows
+./start_backend_demo.ps1
+
+# Frontend (Vite dev server)
+cd C:\cnc-telemetry-main\scripts\windows
+./start_frontend_demo.ps1
+
+# Dashboard
+Abrir http://localhost:5173
+```
+
+Detalhes:
+- `start_backend_demo.ps1` ativa `backend/.venv`, exporta as variáveis `ENABLE_M80_WORKER=true`, `USE_SIMULATION_DATA=true`, `TELEMETRY_POLL_INTERVAL_SEC=1`, `MACHINE_ID=M80-DEMO-01`, `API_URL=http://127.0.0.1:8001` e executa `python -m backend.server_entry`.
+- `start_frontend_demo.ps1` garante `npm install` (caso `node_modules/` não exista) e roda `npm run dev` apontando para o backend local.
+- O arquivo `frontend/.env.development` define `VITE_API_BASE=http://127.0.0.1:8001` e `VITE_MACHINE_ID=M80-DEMO-01`, alinhando o frontend ao mesmo machine_id.
+
+Gate (B3.2-SCRIPTS-PASS): `/healthz` responde 200 após `start_backend_demo.ps1` e o dashboard em http://localhost:5173 mostra os dados da máquina `M80-DEMO-01` quando o frontend é iniciado via `start_frontend_demo.ps1`.

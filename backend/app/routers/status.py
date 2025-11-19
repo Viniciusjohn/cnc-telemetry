@@ -8,7 +8,7 @@ import logging
 from fastapi import APIRouter, Response, Depends, Query
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from sqlalchemy.exc import OperationalError, ProgrammingError
@@ -185,7 +185,15 @@ def get_machine_events(
 
     return result
 
-def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str, db: Session = None):
+def update_status(
+    machine_id: str,
+    rpm: float,
+    feed_mm_min: float,
+    state: str,
+    db: Session = None,
+    extra: Optional[dict] = None,
+    snapshot_ts: Optional[datetime] = None,
+):
     """
     Atualiza status no store e persiste evento no histórico.
     Chamado por /ingest após validação.
@@ -197,9 +205,15 @@ def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str, d
         "idle": "READY"
     }
     
-    timestamp_utc = datetime.now(timezone.utc)
+    timestamp_utc = snapshot_ts or datetime.now(timezone.utc)
     timestamp_str = timestamp_utc.isoformat().replace('+00:00', 'Z')
     execution = execution_map.get(state, "READY")
+
+    spindle_load_pct = None
+    alarm_code = None
+    if extra:
+        spindle_load_pct = extra.get("spindle_load_pct")
+        alarm_code = extra.get("alarm_code")
     
     # Atualizar status em memória
     status = MachineStatus(
@@ -210,9 +224,9 @@ def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str, d
         execution=execution,
         rpm=rpm,
         feed_rate=feed_mm_min,
-        spindle_load_pct=None,  # [ASSUNCAO] Não disponível no payload atual
+        spindle_load_pct=spindle_load_pct,
         tool_id=None,  # [ASSUNCAO] Não disponível no payload atual
-        alarm_code=None,  # [ASSUNCAO] Não disponível no payload atual
+        alarm_code=alarm_code,
         alarm_message=None,  # [ASSUNCAO] Não disponível no payload atual
         part_count=None,  # [ASSUNCAO] Não disponível no payload atual
         update_interval_ms=1000,
@@ -231,9 +245,9 @@ def update_status(machine_id: str, rpm: float, feed_mm_min: float, state: str, d
                 execution=execution,
                 rpm=rpm,
                 feed_rate=feed_mm_min,
-                spindle_load_pct=None,
+                spindle_load_pct=spindle_load_pct,
                 tool_id=None,
-                alarm_code=None,
+                alarm_code=alarm_code,
                 alarm_message=None,
                 part_count=None,
                 controller_family="MITSUBISHI_M8X",

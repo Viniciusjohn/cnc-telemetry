@@ -3,6 +3,7 @@
 Use `app.config.settings` for host/port/database overrides.
 """
 
+import asyncio
 import logging
 
 from fastapi import Depends, FastAPI, Request, Response
@@ -13,10 +14,18 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 # Import routers
+from backend.app.config import ENABLE_M80_WORKER, TELEMETRY_POLL_INTERVAL_SEC
 from backend.app.routers import history, oee, status
 
 # Import DB
 from backend.app.db import Telemetry, get_db
+from backend.app.services.telemetry_pipeline import process_m80_snapshot
+from backend.app.services.worker_monitor import (
+    mark_worker_enabled,
+    mark_snapshot_success,
+    mark_snapshot_error,
+    get_worker_status,
+)
 
 APP_VERSION = "v0.3"
 
@@ -27,6 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger("cnc-telemetry")
 
 app = FastAPI(title="CNC Telemetry API", version=APP_VERSION)
+_m80_worker_task: asyncio.Task | None = None
 
 # Wire routers
 app.include_router(status.router)
@@ -61,18 +71,64 @@ async def enforce_preflight_204(request: Request, call_next):
     return res
 
 
+async def _m80_worker_loop() -> None:
+    """Continuously trigger the M80 adapter pipeline respecting config flags."""
+
+    poll_interval = max(0.1, TELEMETRY_POLL_INTERVAL_SEC)
+    while True:
+        if ENABLE_M80_WORKER:
+            try:
+                snapshot_ts = datetime.now(timezone.utc)
+                process_m80_snapshot()
+                mark_snapshot_success(snapshot_ts)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "m80 worker failed to process snapshot",
+                    extra={"error": str(exc)},
+                )
+                mark_snapshot_error()
+        await asyncio.sleep(poll_interval)
+
+
 @app.on_event("startup")
 async def log_startup() -> None:
     logger.info("CNC Telemetry API starting", extra={"version": APP_VERSION})
+    global _m80_worker_task
+    if _m80_worker_task is None:
+        loop = asyncio.get_running_loop()
+        mark_worker_enabled(ENABLE_M80_WORKER)
+        _m80_worker_task = loop.create_task(_m80_worker_loop())
+        logger.info(
+            "M80 telemetry worker scheduled",
+            extra={
+                "enable_flag": ENABLE_M80_WORKER,
+                "poll_interval": TELEMETRY_POLL_INTERVAL_SEC,
+            },
+        )
+
+
+@app.on_event("shutdown")
+async def stop_workers() -> None:
+    global _m80_worker_task
+    if _m80_worker_task is not None:
+        _m80_worker_task.cancel()
+        try:
+            await _m80_worker_task
+        except asyncio.CancelledError:
+            logger.info("M80 telemetry worker cancelled")
+        finally:
+            _m80_worker_task = None
 
 
 @app.get("/healthz", tags=["infra"])
 async def healthz():
-    return {
+    payload = {
         "status": "ok",
         "service": "cnc-telemetry",
         "version": APP_VERSION,
     }
+    payload.update(get_worker_status())
+    return payload
 
 @app.middleware("http")
 async def headers(req, call_next):

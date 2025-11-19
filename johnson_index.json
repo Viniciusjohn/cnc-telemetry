@@ -1,0 +1,142 @@
+[
+  {
+    "path": "backend/main.py",
+    "language": "python",
+    "role": "api",
+    "critical": true,
+    "notes": "FastAPI entrypoint with routers and _m80_worker_loop background task"
+  },
+  {
+    "path": "backend/app/config.py",
+    "language": "python",
+    "role": "config",
+    "critical": true,
+    "notes": "Centralized settings loading env + backend/config.json (flags USE_SIMULATION_DATA, ENABLE_M80_WORKER, DB URL)"
+  },
+  {
+    "path": "backend/app/db.py",
+    "language": "python",
+    "role": "infra",
+    "critical": true,
+    "notes": "SQLAlchemy engine/models for Telemetry, TelemetryEvents, OEEDaily and session helpers"
+  },
+  {
+    "path": "backend/app/services/m80_adapter.py",
+    "language": "python",
+    "role": "service",
+    "critical": true,
+    "notes": "Unified adapter for Mitsubishi M80 providing simulated or real snapshots with extra metadata"
+  },
+  {
+    "path": "backend/app/services/telemetry_pipeline.py",
+    "language": "python",
+    "role": "service",
+    "critical": true,
+    "notes": "process_m80_snapshot() orchestrates adapter read, Telemetry insert and status/event updates"
+  },
+  {
+    "path": "backend/app/services/alerts.py",
+    "language": "python",
+    "role": "service",
+    "critical": false,
+    "notes": "Celery/Redis alert evaluation workflow loading YAML rules"
+  },
+  {
+    "path": "backend/app/routers/status.py",
+    "language": "python",
+    "role": "api",
+    "critical": true,
+    "notes": "/v1/machines/{id}/status and /events plus update_status() storing TelemetryEvents metadata"
+  },
+  {
+    "path": "backend/app/routers/history.py",
+    "language": "python",
+    "role": "api",
+    "critical": true,
+    "notes": "Historical data endpoints querying telemetry buckets and aggregates"
+  },
+  {
+    "path": "backend/app/routers/oee.py",
+    "language": "python",
+    "role": "api",
+    "critical": false,
+    "notes": "REST endpoints exposing OEE calculations per machine/date"
+  },
+  {
+    "path": "backend/app/services/oee.py",
+    "language": "python",
+    "role": "domain",
+    "critical": false,
+    "notes": "Business logic for computing OEE metrics per shift and ranges"
+  },
+  {
+    "path": "backend/mtconnect_adapter.py",
+    "language": "python",
+    "role": "script",
+    "critical": true,
+    "notes": "Async MTConnect client that polls /sample and POSTs to backend ingest (used em campo)"
+  },
+  {
+    "path": "backend/requirements.txt",
+    "language": "text",
+    "role": "config",
+    "critical": true,
+    "notes": "Pinned backend dependencies (FastAPI, SQLAlchemy, Celery, etc.)"
+  },
+  {
+    "path": "frontend/src/App.tsx",
+    "language": "typescript",
+    "role": "service",
+    "critical": true,
+    "notes": "Main React dashboard polling status/events and rendering telemetry cards"
+  },
+  {
+    "path": "frontend/src/components/OEECard.tsx",
+    "language": "typescript",
+    "role": "service",
+    "critical": false,
+    "notes": "OEE visualization component consuming backend OEE endpoint"
+  },
+  {
+    "path": "frontend/e2e/smoke.spec.ts",
+    "language": "typescript",
+    "role": "test",
+    "critical": false,
+    "notes": "Playwright smoke test for dashboard"
+  },
+  {
+    "path": "scripts/mtconnect_simulator.py",
+    "language": "python",
+    "role": "script",
+    "critical": false,
+    "notes": "Local MTConnect simulator exposing /probe, /current, /sample"
+  },
+  {
+    "path": "scripts/start_telemetry.bat",
+    "language": "batch",
+    "role": "script",
+    "critical": false,
+    "notes": "Windows helper to activate venv and run backend server"
+  },
+  {
+    "path": "install_cnc_telemetry.ps1",
+    "language": "powershell",
+    "role": "infra",
+    "critical": true,
+    "notes": "One-click installer/service setup for backend on Windows"
+  },
+  {
+    "path": "docs/MTConnect_COMPLIANCE.md",
+    "language": "markdown",
+    "role": "domain",
+    "critical": false,
+    "notes": "Field adjustments and canonical rules for MTConnect data"
+  },
+  {
+    "path": "tools/demo/send_fake_events.py",
+    "language": "python",
+    "role": "script",
+    "critical": false,
+    "notes": "Demo tool to POST fake telemetry payloads to backend"
+  }
+]

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { fetchMachineStatus, fetchMachineEvents, MachineStatus, MachineEvent, ApiError } from "./lib/api";
 import { OEECard } from "./components/OEECard";
+import { MACHINE_ID } from "./config/machine";
 
-const MACHINE_ID = "CNC-SIM-001";
 const POLL_INTERVAL_MS = 1000;
 const EVENTS_POLL_INTERVAL_MS = 10000; // 10s para eventos
 
@@ -19,7 +19,7 @@ export default function App() {
 
     async function poll() {
       try {
-        const data = await fetchMachineStatus(MACHINE_ID);
+        const data = await fetchMachineStatus();
         if (isMounted) {
           setStatus(data);
           setError(null);

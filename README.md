@@ -25,6 +25,7 @@ Serviço de telemetria CNC do projeto CNC-Genius (MTConnect → JSON canônico �
 
 ### Backend (porta 8001)
 
+#### Linux/macOS
 ```bash
 cd backend
 python3 -m venv .venv
@@ -32,6 +33,19 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --port 8001 --reload
 ```
+
+#### Windows (modo rápido)
+```powershell
+cd C:\cnc-telemetry-main
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r .\backend\requirements.txt
+```
+- Subir backend: `scripts\windows\start_telemetry.bat`
+- Diagnóstico: `scripts\windows\telemetry_diag.ps1`
+- Instalação one-click: `install_cnc_telemetry.ps1` (detalhes em docs/STATUS_WINDOWS_DEV.md)
+- Serviço Windows via NSSM: `scripts\windows\install_service_with_nssm.ps1` (docs/SERVICO_WINDOWS_TELEMETRY.md)
+- Modo demo (sem CNC): `python tools\demo\send_fake_events.py` com o backend/serviço ativo
 
 ### Frontend (porta 5173)
 

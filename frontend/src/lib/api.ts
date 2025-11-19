@@ -3,6 +3,8 @@
  * Usa VITE_API_BASE env var (apenas prefixadas são expostas).
  */
 
+import { MACHINE_ID } from "../config/machine";
+
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export interface MachineStatus {
@@ -46,7 +48,7 @@ export class ApiError extends Error {
  * Busca status de uma máquina.
  * @throws {ApiError} Se response não for ok
  */
-export async function fetchMachineStatus(machineId: string): Promise<MachineStatus> {
+export async function fetchMachineStatus(machineId: string = MACHINE_ID): Promise<MachineStatus> {
   const url = `${API_BASE}/v1/machines/${machineId}/status`;
   
   const response = await fetch(url, {
@@ -67,7 +69,7 @@ export async function fetchMachineStatus(machineId: string): Promise<MachineStat
  * Busca eventos históricos de uma máquina.
  * @throws {ApiError} Se response não for ok
  */
-export async function fetchMachineEvents(machineId: string, limit: number = 50): Promise<MachineEvent[]> {
+export async function fetchMachineEvents(machineId: string = MACHINE_ID, limit: number = 50): Promise<MachineEvent[]> {
   const url = `${API_BASE}/v1/machines/${machineId}/events?limit=${limit}`;
   
   const response = await fetch(url, {

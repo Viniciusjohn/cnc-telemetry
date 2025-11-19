@@ -1,0 +1,6 @@
+{
+  "USE_SIMULATION_DATA": true,
+  "MACHINE_ID": "M80-DEMO-01",
+  "MACHINE_IP": "192.168.1.10",
+  "API_URL": "http://127.0.0.1:8001"
+}
